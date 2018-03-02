@@ -1,0 +1,118 @@
+{
+  "id": 2148,
+  "name": "New Composed Shader",
+  "fragment": "precision highp float;\nprecision highp int;\nuniform mat4 viewMatrix;\nuniform vec3 cameraPosition;\nuniform float HDRMultiplier;\nuniform float Kr;\nuniform float FresnelBias;\nuniform float FresnelExp;\nuniform float KWater;\nuniform vec3 DeepColor;\nuniform vec3 ShallowColor;\nuniform vec3 ReflTint;\nuniform sampler2D normalMap;\nuniform samplerCube envMap;\nvarying vec4 HPosition;\nvarying vec2 UV;\nvarying vec3 T2WXf1;\nvarying vec3 T2WXf2;\nvarying vec3 T2WXf3;\nvarying vec2 bumpUV0;\nvarying vec2 bumpUV1;\nvarying vec2 bumpUV2;\nvarying vec3 WorldView;\nvarying float wh;\nvec4 Ocean_Shader1519879990396_436_main() \n{\n    vec4 Ocean_Shader1519879990396_436_gl_FragColor = vec4(0.0);\n    vec4 t0 = texture2D(normalMap, bumpUV0) * 2.0 - 1.0;\n    vec4 t1 = texture2D(normalMap, bumpUV1) * 2.0 - 1.0;\n    vec4 t2 = texture2D(normalMap, bumpUV2) * 2.0 - 1.0;\n    vec3 Nt = t0.xyz + t1.xyz + t2.xyz;\n    mat3 m;\n    m[0] = T2WXf1;\n    m[1] = T2WXf2;\n    m[2] = T2WXf3;\n    vec3 Nw = m * Nt;\n    vec3 Nn = normalize(Nw);\n    vec3 Vn = normalize(WorldView);\n    vec3 R = reflect(-Vn, Nn);\n    vec4 reflection = textureCube(envMap, R);\n    reflection.rgb *= (1.0 + reflection.a * HDRMultiplier);\n    float facing = 1.0 - max(dot(Vn, Nn), 0.0);\n    float fres = Kr * (FresnelBias + (1.0 - FresnelBias) * pow(facing, FresnelExp));\n    vec3 waterColor = KWater * mix(DeepColor, ShallowColor, facing);\n    vec3 result = mix(waterColor, (reflection.rgb * ReflTint), fres);\n    Ocean_Shader1519879990396_436_gl_FragColor = vec4(result.rgb, 1.0);\n    return Ocean_Shader1519879990396_436_gl_FragColor *= 1.0;\n}\nvoid main() \n{\n    gl_FragColor = Ocean_Shader1519879990396_436_main();}\n",
+  "vertex": "precision highp float;\nprecision highp int;\nuniform mat4 modelMatrix;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat4 viewMatrix;\nuniform mat3 normalMatrix;\nuniform vec3 cameraPosition;\nuniform float time;\nuniform float WaveAmp;\nuniform float WaveFreq;\nuniform float BumpScale;\nuniform float TexReptX;\nuniform float TexReptY;\nuniform float BumpSpeedX;\nuniform float BumpSpeedY;\nattribute vec3 position;\nattribute vec3 normal;\nattribute vec2 uv;\nattribute vec2 uv2;\nconst int NWAVES = 2;\nstruct Wave {\n    float freq;\n    float amp;\n    float phase;\n    vec2 dir;\n};\nWave wave[NWAVES];\nvarying vec4 HPosition;\nvarying vec2 UV;\nvarying vec3 T2WXf1;\nvarying vec3 T2WXf2;\nvarying vec3 T2WXf3;\nvarying vec2 bumpUV0;\nvarying vec2 bumpUV1;\nvarying vec2 bumpUV2;\nvarying vec3 WorldView;\nvarying float wh;\nfloat evaluateWave(Wave w, vec2 pos, float t) \n{\n    return w.amp * sin(dot(w.dir, pos) * w.freq + t * w.phase);\n}\nfloat evaluateWaveDeriv(Wave w, vec2 pos, float t) \n{\n    return w.freq * w.amp * cos(dot(w.dir, pos) * w.freq + t * w.phase);\n}\nfloat evaluateWaveSharp(Wave w, vec2 pos, float t, float k) \n{\n    return w.amp * pow(sin(dot(w.dir, pos) * w.freq + t * w.phase) * 0.5 + 0.5, k);\n}\nfloat evaluateWaveDerivSharp(Wave w, vec2 pos, float t, float k) \n{\n    return k * w.freq * w.amp * pow(sin(dot(w.dir, pos) * w.freq + t * w.phase) * 0.5 + 0.5, k - 1.) * cos(dot(w.dir, pos) * w.freq + t * w.phase);\n}\nvec4 Ocean_Shader1519879990396_436_main() \n{\n    vec4 Ocean_Shader1519879990396_436_gl_Position = vec4(0.0);\n    wave[0].freq = cos(WaveFreq);\n    wave[0].amp = WaveAmp;\n    wave[0].phase = 0.5;\n    wave[0].dir = vec2(-1.3, 0.0);\n    wave[1].freq = WaveFreq * 2.0;\n    wave[1].amp = WaveAmp * 0.5;\n    wave[1].phase = 1.3;\n    wave[1].dir = vec2(0.2, -0.7);\n    vec4 Po = vec4(position.xyz, 1.0);\n    float ddx = 0.0, ddy = 0.0;\n    for (int i = 0;\n i < 1; i++) \n    {\n        Po.y += evaluateWave(wave[i], Po.xz, time);\n        float deriv = evaluateWaveDeriv(wave[i], Po.xz, time);\n        ddx += deriv * wave[i].dir.x;\n        ddy += deriv * wave[i].dir.y;\n    }\n    wh = Po.y / WaveAmp;\n    vec3 B = vec3(1, ddx, 0);\n    vec3 T = vec3(0, ddy, 1);\n    vec3 N = vec3(-ddx, 1, -ddy);\n    vec2 TextureScale = vec2(TexReptX, TexReptY);\n    vec2 BumpSpeed = vec2(BumpSpeedX, BumpSpeedY);\n    UV = uv.xy * TextureScale;\n    float cycle = mod(time, 100.);\n    bumpUV0.xy = uv.xy * TextureScale + cycle * BumpSpeed;\n    bumpUV1.xy = uv.xy * TextureScale * 2.0 + cycle * BumpSpeed * 4.0;\n    bumpUV2.xy = uv.xy * TextureScale * 4.0 + cycle * BumpSpeed * 8.0;\n    mat3 objToTangentSpace;\n    objToTangentSpace[0] = BumpScale * normalize(T);\n    objToTangentSpace[1] = BumpScale * normalize(B);\n    objToTangentSpace[2] = normalize(N);\n    T2WXf1.xyz = modelMatrix[0].xyz * objToTangentSpace;\n    T2WXf2.xyz = modelMatrix[1].xyz * objToTangentSpace;\n    T2WXf3.xyz = modelMatrix[2].xyz * objToTangentSpace;\n    vec3 Pw = (Po * modelMatrix).xyz;\n    WorldView = cameraPosition - Pw;\n    Ocean_Shader1519879990396_436_gl_Position = projectionMatrix * modelViewMatrix * Po;\n    return Ocean_Shader1519879990396_436_gl_Position *= 1.0;\n}\nvoid main() \n{\n    gl_Position = Ocean_Shader1519879990396_436_main();}\n",
+  "uniforms": {
+    "cameraPosition": {
+      "type": "v3",
+      "glslType": "vec3"
+    },
+    "HDRMultiplier": {
+      "value": "0.5",
+      "type": "f",
+      "glslType": "float"
+    },
+    "Kr": {
+      "value": "1",
+      "type": "f",
+      "glslType": "float"
+    },
+    "FresnelBias": {
+      "value": "2",
+      "type": "f",
+      "glslType": "float"
+    },
+    "FresnelExp": {
+      "value": "2",
+      "type": "f",
+      "glslType": "float"
+    },
+    "KWater": {
+      "value": "0",
+      "type": "f",
+      "glslType": "float"
+    },
+    "DeepColor": {
+      "value": {
+        "r": 0.12941176470588237,
+        "g": 0.1803921568627451,
+        "b": 0.6901960784313725
+      },
+      "type": "c",
+      "glslType": "vec3"
+    },
+    "ShallowColor": {
+      "value": {
+        "r": 0.4627450980392157,
+        "g": 0.7686274509803922,
+        "b": 0.796078431372549
+      },
+      "type": "c",
+      "glslType": "vec3"
+    },
+    "ReflTint": {
+      "value": {
+        "r": 0.4470588235294118,
+        "g": 0.5333333333333333,
+        "b": 0.5529411764705883
+      },
+      "type": "c",
+      "glslType": "vec3"
+    },
+    "normalMap": {
+      "value": null,
+      "type": "t",
+      "glslType": "sampler2D"
+    },
+    "envMap": {
+      "value": null,
+      "type": "t",
+      "glslType": "samplerCube"
+    },
+    "WaveAmp": {
+      "value": "0.0001",
+      "type": "f",
+      "glslType": "float"
+    },
+    "WaveFreq": {
+      "value": "1",
+      "type": "f",
+      "glslType": "float"
+    },
+    "BumpScale": {
+      "value": "1",
+      "type": "f",
+      "glslType": "float"
+    },
+    "TexReptX": {
+      "value": "1",
+      "type": "f",
+      "glslType": "float"
+    },
+    "TexReptY": {
+      "value": "1",
+      "type": "f",
+      "glslType": "float"
+    },
+    "BumpSpeedX": {
+      "value": "0.01",
+      "type": "f",
+      "glslType": "float"
+    },
+    "BumpSpeedY": {
+      "value": "0.01",
+      "type": "f",
+      "glslType": "float"
+    },
+    "time": {
+      "type": "f",
+      "glslType": "float"
+    }
+  },
+  "url": "http://shaderfrog.com/app/view/2148",
+  "user": {
+    "username": "vyle",
+    "url": "http://shaderfrog.com/app/profile/andrewray"
+  }
+}
